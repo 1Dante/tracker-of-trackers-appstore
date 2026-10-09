@@ -86,7 +86,7 @@ for aid in "${artists[@]+"${artists[@]}"}"; do
   sleep "$SLEEP"
 done
 
-# ---------- Merge ----------
+# ---------- Merge today's results ----------
 # Dedupe by trackId, keeping every query/source an app was found by
 jq -L "$DIR" -s 'include "map";
   add
@@ -95,9 +95,42 @@ jq -L "$DIR" -s 'include "map";
   | map(.[0] + {
       queries: (map(.query) | map(select(. != null)) | unique),
       sources: (map(.source) | unique)
-    } | del(.query, .source))
-  | sort_by(.releaseDate) | reverse
-' tmp/search_*.json $(ls tmp/artist_*.json 2>/dev/null) > data/apps.json
+    } | del(.query, .source, .releaseNotes))
+' tmp/search_*.json $(ls tmp/artist_*.json 2>/dev/null) > tmp/today.json
+
+# ---------- Accumulate with previous data ----------
+# Apps seen before but missing today are kept (search results fluctuate).
+# firstSeen = first day we ever saw the app, lastSeen = last day it showed up.
+TODAY="${TODAY:-$(date -u +%F)}"
+[[ -s data/apps.json ]] || echo "[]" > data/apps.json
+
+jq -n --arg today "$TODAY" \
+  --slurpfile prev data/apps.json \
+  --slurpfile cur tmp/today.json '
+  ($prev[0] | map({key: (.trackId | tostring), value: .}) | from_entries) as $old
+  | ($cur[0] | map(. + {
+        firstSeen: ($old[.trackId | tostring].firstSeen // $today),
+        lastSeen: $today
+      })) as $fresh
+  | ($fresh | map(.trackId | tostring) | map({key: ., value: true}) | from_entries) as $seen
+  | ($prev[0] | map(select($seen[.trackId | tostring] | not) | del(.releaseNotes))) as $missing
+  | ($fresh + $missing) | sort_by(.releaseDate) | reverse
+' > tmp/merged.json
+mv tmp/merged.json data/apps.json
+
+# ---------- Daily snapshot (history) ----------
+# One compact line per tracker seen today: d=date, id, r=rating, n=ratingCount, v=version.
+# Re-running on the same day replaces that day's lines instead of duplicating them.
+SNAP="data/snapshots/${TODAY:0:7}.jsonl"
+mkdir -p data/snapshots
+touch "$SNAP"
+grep -v "\"d\":\"$TODAY\"" "$SNAP" > tmp/snap.jsonl || true
+jq -c --arg today "$TODAY" '.[]
+  | select(.isTrackerLike and .lastSeen == $today)
+  | {d: $today, id: .trackId, r: .rating, n: .ratingCount, v: .version}
+' data/apps.json >> tmp/snap.jsonl
+mv tmp/snap.jsonl "$SNAP"
+echo "Snapshot: $(grep -c "\"d\":\"$TODAY\"" "$SNAP") rows -> $SNAP"
 
 total=$(jq 'length' data/apps.json)
 onlyArtist=$(jq '[.[] | select(.sources == ["artist"])] | length' data/apps.json)
