@@ -1,0 +1,35 @@
+name: Collect trackers
+
+on:
+  workflow_dispatch:          # manual "Run workflow" button
+    inputs:
+      limit_artists:
+        description: "How many developers to expand (0 = all)"
+        default: "20"
+  schedule:
+    - cron: "0 4 * * *"       # daily at 04:00 UTC (07:00 Kyiv)
+
+permissions:
+  contents: write             # allow the bot to commit data
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run collector
+        env:
+          # manual run uses the input; scheduled run expands all developers
+          LIMIT_ARTISTS: ${{ github.event.inputs.limit_artists || '0' }}
+        run: bash collect.sh
+
+      - name: Commit data
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/
+          # commit only if data actually changed
+          git diff --staged --quiet || git commit -m "data: $(date -u +%F)"
+          git push
