@@ -7,10 +7,14 @@ on:
         description: "How many developers to expand (0 = all)"
         default: "20"
   schedule:
-    - cron: "0 4 * * *"       # daily at 04:00 UTC (07:00 Kyiv)
+    - cron: "17 3 * * *"      # daily at 03:17 UTC (06:17 Kyiv), off-peak minute
 
 permissions:
   contents: write             # allow the bot to commit data
+
+concurrency:
+  group: collect              # never run two collectors at the same time
+  cancel-in-progress: false   # queue the new run instead of killing the current one
 
 jobs:
   collect:
@@ -32,4 +36,6 @@ jobs:
           git add data/
           # commit only if data actually changed
           git diff --staged --quiet || git commit -m "data: $(date -u +%F)"
+          # pick up commits pushed while the job was running
+          git pull --rebase
           git push

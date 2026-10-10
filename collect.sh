@@ -103,20 +103,33 @@ jq -L "$DIR" -s 'include "map";
 # firstSeen = first day we ever saw the app, lastSeen = last day it showed up.
 TODAY="${TODAY:-$(date -u +%F)}"
 [[ -s data/apps.json ]] || echo "[]" > data/apps.json
+[[ -s data/other_apps.json ]] || echo "[]" > data/other_apps.json
 
-jq -n --arg today "$TODAY" \
-  --slurpfile prev data/apps.json \
-  --slurpfile cur tmp/today.json '
-  ($prev[0] | map({key: (.trackId | tostring), value: .}) | from_entries) as $old
+jq -L "$DIR" -n --arg today "$TODAY" \
+  --slurpfile trk data/apps.json \
+  --slurpfile oth data/other_apps.json \
+  --slurpfile cur tmp/today.json 'include "map";
+  ($trk[0] + $oth[0]) as $prev
+  | ($prev | map({key: (.trackId | tostring), value: .}) | from_entries) as $old
   | ($cur[0] | map(. + {
         firstSeen: ($old[.trackId | tostring].firstSeen // $today),
         lastSeen: $today
       })) as $fresh
   | ($fresh | map(.trackId | tostring) | map({key: ., value: true}) | from_entries) as $seen
-  | ($prev[0] | map(select($seen[.trackId | tostring] | not) | del(.releaseNotes))) as $missing
+  # recompute the flag so a regex change can move apps between the two files
+  | ($prev | map(select($seen[.trackId | tostring] | not)
+                 | del(.releaseNotes)
+                 | .isTrackerLike = tracker_like)) as $missing
   | ($fresh + $missing) | sort_by(.releaseDate) | reverse
 ' > tmp/merged.json
-mv tmp/merged.json data/apps.json
+
+# ---------- Split: trackers vs everything else ----------
+# apps.json        full records, trackers only (what the site uses)
+# other_apps.json  minimal records for non-trackers (kept for re-classification)
+jq '[.[] | select(.isTrackerLike)]' tmp/merged.json > data/apps.json
+jq '[.[] | select(.isTrackerLike | not)
+     | {trackId, trackName, sellerName, artistId, genre, releaseDate,
+        isTrackerLike, firstSeen, lastSeen}]' tmp/merged.json > data/other_apps.json
 
 # ---------- Daily snapshot (history) ----------
 # One compact line per tracker seen today: d=date, id, r=rating, n=ratingCount, v=version.
@@ -126,21 +139,18 @@ mkdir -p data/snapshots
 touch "$SNAP"
 grep -v "\"d\":\"$TODAY\"" "$SNAP" > tmp/snap.jsonl || true
 jq -c --arg today "$TODAY" '.[]
-  | select(.isTrackerLike and .lastSeen == $today)
+  | select(.lastSeen == $today)
   | {d: $today, id: .trackId, r: .rating, n: .ratingCount, v: .version}
 ' data/apps.json >> tmp/snap.jsonl
 mv tmp/snap.jsonl "$SNAP"
 echo "Snapshot: $(grep -c "\"d\":\"$TODAY\"" "$SNAP") rows -> $SNAP"
 
-total=$(jq 'length' data/apps.json)
-onlyArtist=$(jq '[.[] | select(.sources == ["artist"])] | length' data/apps.json)
-onlyArtistTr=$(jq '[.[] | select(.sources == ["artist"] and .isTrackerLike)] | length' data/apps.json)
-
+# ---------- Summary ----------
 echo
-echo "Total unique:                $total"
-echo "Found only via developers:   $onlyArtist (tracker-like: $onlyArtistTr)"
-echo "Tracker-like overall:        $(jq '[.[] | select(.isTrackerLike)] | length' data/apps.json)"
+echo "Trackers (apps.json):        $(jq 'length' data/apps.json)"
+echo "  new today:                 $(jq --arg t "$TODAY" '[.[] | select(.firstSeen == $t)] | length' data/apps.json)"
+echo "  missing from today's run:  $(jq --arg t "$TODAY" '[.[] | select(.lastSeen != $t)] | length' data/apps.json)"
+echo "Other apps (other_apps.json): $(jq 'length' data/other_apps.json)"
 echo
 echo "New trackers per month (since 2024):"
-jq -r '.[] | select(.isTrackerLike and .releaseDate >= "2024") | .releaseDate[:7]' data/apps.json \
-  | sort | uniq -c
+jq -r '.[] | select(.releaseDate >= "2024") | .releaseDate[:7]' data/apps.json | sort | uniq -c
