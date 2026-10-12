@@ -2,6 +2,7 @@
 # Collects tracker apps from the Ukrainian App Store -> data/apps.json
 #   Step 1: many narrow search queries (EN + UA)
 #   Step 2: expand via developers of new apps (lookup by artistId)
+#   Step 3: refresh known trackers not seen today (batch lookup by trackId)
 #
 # Env options:
 #   SKIP_SEARCH=1     reuse search results from the previous run (tmp/)
@@ -123,6 +124,53 @@ jq -L "$DIR" -n --arg today "$TODAY" \
   | ($fresh + $missing) | sort_by(.releaseDate) | reverse
 ' > tmp/merged.json
 
+# ---------- Step 3: refresh known trackers that weren't seen today ----------
+# Lookup accepts many ids per request, so the whole base costs only a few dozen calls.
+# Apps the lookup doesn't return are gone from the UA store -> goneSince.
+# Apps that come back later lose the goneSince mark.
+LOOKUP_BATCH=150
+missing_ids=()
+while IFS= read -r id; do missing_ids+=("$id"); done < <(jq -r --arg t "$TODAY" \
+  '.[] | select(.isTrackerLike and .lastSeen != $t) | .trackId' tmp/merged.json)
+echo "Refreshing ${#missing_ids[@]} trackers via lookup…"
+
+rm -f tmp/lookup_*.json
+b=0
+for ((k=0; k<${#missing_ids[@]}; k+=LOOKUP_BATCH)); do
+  b=$((b+1))
+  chunk=("${missing_ids[@]:k:LOOKUP_BATCH}")
+  ids=$(IFS=,; echo "${chunk[*]}")
+  # requested ids are stored with the response, so a failed request never marks apps as gone
+  if curl -sf "https://itunes.apple.com/lookup?id=${ids}&country=${COUNTRY}" > tmp/raw.json \
+     && jq -e 'has("results")' tmp/raw.json >/dev/null 2>&1; then
+    jq -L "$DIR" --arg ids "$ids" 'include "map";
+      { requested: ($ids | split(",") | map(tonumber)),
+        apps: [(.results // [])[] | select(.wrapperType == "software") | to_app("lookup"; null)] }' \
+      tmp/raw.json > "tmp/lookup_$b.json"
+  else
+    echo "   ⚠️  lookup batch $b failed, skipping"
+  fi
+  sleep "$SLEEP"
+done
+
+if ls tmp/lookup_*.json >/dev/null 2>&1; then
+  jq -n --arg today "$TODAY" --slurpfile m tmp/merged.json '
+    [inputs] as $batches
+    | ($batches | map(.apps) | add | map({key: (.trackId | tostring), value: .}) | from_entries) as $got
+    | ($batches | map(.requested) | add | map({key: tostring, value: true}) | from_entries) as $asked
+    | $m[0] | map(
+        (.trackId | tostring) as $id
+        | if $got[$id] then
+            # fresh data, but keep our own bookkeeping fields
+            $got[$id] + {firstSeen, queries, sources, lastSeen: $today}
+            | del(.query, .source, .releaseNotes, .goneSince)
+          elif $asked[$id] then
+            .goneSince = (.goneSince // $today)
+          else . end)
+  ' tmp/lookup_*.json > tmp/refreshed.json
+  mv tmp/refreshed.json tmp/merged.json
+fi
+
 # ---------- Split: trackers vs everything else ----------
 # apps.json        full records, trackers only (what the site uses)
 # other_apps.json  minimal records for non-trackers (kept for re-classification)
@@ -149,7 +197,8 @@ echo "Snapshot: $(grep -c "\"d\":\"$TODAY\"" "$SNAP") rows -> $SNAP"
 echo
 echo "Trackers (apps.json):        $(jq 'length' data/apps.json)"
 echo "  new today:                 $(jq --arg t "$TODAY" '[.[] | select(.firstSeen == $t)] | length' data/apps.json)"
-echo "  missing from today's run:  $(jq --arg t "$TODAY" '[.[] | select(.lastSeen != $t)] | length' data/apps.json)"
+echo "  not confirmed today:       $(jq --arg t "$TODAY" '[.[] | select(.lastSeen != $t)] | length' data/apps.json)"
+echo "  gone from the store:       $(jq '[.[] | select(.goneSince)] | length' data/apps.json)"
 echo "Other apps (other_apps.json): $(jq 'length' data/other_apps.json)"
 echo
 echo "New trackers per month (since 2024):"
