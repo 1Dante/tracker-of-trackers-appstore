@@ -29,6 +29,9 @@ jobs:
           LIMIT_ARTISTS: ${{ github.event.inputs.limit_artists || '0' }}
         run: bash collect.sh
 
+      - name: Build site data
+        run: bash build_site.sh
+
       - name: Commit data
         run: |
           git config user.name "github-actions[bot]"

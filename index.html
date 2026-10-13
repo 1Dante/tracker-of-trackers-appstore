@@ -1,0 +1,461 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Трекер трекерів</title>
+<meta name="description" content="Усі трекери з українського App Store, які вдалося знайти: звички, гроші, вода, сон, калорії. Оновлюється щодня.">
+<meta name="theme-color" content="#F5F6FA" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#121329" media="(prefers-color-scheme: dark)">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600&family=Unbounded:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #F5F6FA;
+    --surface: #FFFFFF;
+    --ink: #1A1C3A;
+    --muted: #5D6085;
+    --line: #DCDEEA;
+    --accent: #3B3FB5;
+    --accent-ink: #FFFFFF;
+    --gone: #9497B2;
+    /* sequential ramp: releases per day, empty -> busiest */
+    --h0: #E6E7F4; --h1: #C3C6F0; --h2: #8D92E6; --h3: #5258D4; --h4: #2D31A8; --h5: #181A6B;
+    --radius-s: 6px; --radius-m: 14px;
+    --display: "Unbounded", system-ui, sans-serif;
+    --text: "Golos Text", system-ui, sans-serif;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #121329; --surface: #1B1D3A; --ink: #ECEDF7; --muted: #A3A6C8; --line: #2E3158;
+      --accent: #8D92E6; --accent-ink: #121329; --gone: #6B6E92;
+      --h0: #23264A; --h1: #343A85; --h2: #4C55C2; --h3: #727BEA; --h4: #A3AAF7; --h5: #D6D9FF;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #121329; --surface: #1B1D3A; --ink: #ECEDF7; --muted: #A3A6C8; --line: #2E3158;
+    --accent: #8D92E6; --accent-ink: #121329; --gone: #6B6E92;
+    --h0: #23264A; --h1: #343A85; --h2: #4C55C2; --h3: #727BEA; --h4: #A3AAF7; --h5: #D6D9FF;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 400 16px/1.5 var(--text);
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 0 16px; }
+  a { color: inherit; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+
+  /* ---------- header ---------- */
+  header { padding: 28px 0 8px; }
+  h1 {
+    font: 700 clamp(34px, 10vw, 56px)/1.02 var(--display);
+    letter-spacing: -0.02em; margin: 0 0 14px;
+  }
+  .intro { margin: 0; color: var(--muted); max-width: 34em; }
+  .stamp { margin: 6px 0 0; font-size: 14px; color: var(--muted); }
+
+  /* ---------- lead ---------- */
+  .lead { margin: 28px 0 8px; font-size: 19px; line-height: 1.45; max-width: 30em; }
+  .lead strong { font: 700 1.25em/1 var(--display); letter-spacing: -0.01em; }
+
+  section { padding: 28px 0 8px; }
+  h2 { font: 500 20px/1.25 var(--display); margin: 0 0 6px; letter-spacing: -0.01em; }
+  .hint { margin: 0 0 14px; color: var(--muted); font-size: 15px; }
+
+  /* ---------- streak grid ---------- */
+  .grid {
+    display: grid; gap: 2px;
+    grid-template-columns: 46px repeat(31, minmax(0, 1fr)) 38px;
+    touch-action: pan-y; user-select: none; -webkit-user-select: none;
+  }
+  .grid .m { font-size: 12px; color: var(--muted); align-self: center; white-space: nowrap; }
+  .grid .t { font-size: 12px; color: var(--muted); text-align: right; align-self: center; font-variant-numeric: tabular-nums; }
+  .grid .c { aspect-ratio: 1; border-radius: 2px; background: var(--h0); }
+  .grid .c.x { background: transparent; }
+  .grid .c[data-l="1"] { background: var(--h1); }
+  .grid .c[data-l="2"] { background: var(--h2); }
+  .grid .c[data-l="3"] { background: var(--h3); }
+  .grid .c[data-l="4"] { background: var(--h4); }
+  .grid .c[data-l="5"] { background: var(--h5); }
+  .grid .c.on { outline: 2px solid var(--ink); outline-offset: 0; }
+  .readout { min-height: 24px; margin: 12px 0 0; font-size: 15px; }
+  .scale { display: flex; align-items: center; gap: 3px; margin-top: 10px; font-size: 12px; color: var(--muted); }
+  .scale i { width: 12px; height: 12px; border-radius: 2px; display: inline-block; }
+  .scale span { margin: 0 4px; }
+
+  /* ---------- niches ---------- */
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    font: 500 15px/1 var(--text); color: var(--ink);
+    min-height: 44px; padding: 0 14px; border-radius: 22px;
+    border: 1px solid var(--line); background: var(--surface); cursor: pointer;
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  .chip small { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+  .chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .chip[aria-pressed="true"] small { color: inherit; opacity: .8; }
+
+  /* ---------- catalog controls ---------- */
+  .controls { position: sticky; top: 0; z-index: 5; background: var(--bg); padding: 10px 0; display: grid; gap: 8px; grid-template-columns: 1fr auto; }
+  .controls input[type="search"] {
+    grid-column: 1 / -1; width: 100%; min-height: 46px; padding: 0 14px;
+    font: 400 16px var(--text); color: var(--ink);
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-s);
+  }
+  select, .btn {
+    min-height: 44px; font: 500 15px var(--text); color: var(--ink);
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-s); padding: 0 12px;
+  }
+  .btn { cursor: pointer; }
+  .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .btn .dot[hidden] { display: none; }
+  .btn .dot { display: inline-block; min-width: 20px; height: 20px; line-height: 20px; border-radius: 10px; margin-left: 6px; background: var(--accent); color: var(--accent-ink); font-size: 12px; text-align: center; }
+  .count { margin: 4px 0 0; font-size: 14px; color: var(--muted); }
+
+  /* ---------- app list ---------- */
+  .list { list-style: none; margin: 8px 0 0; padding: 0; }
+  .list li { border-bottom: 1px solid var(--line); }
+  .app { display: grid; grid-template-columns: 52px 1fr; gap: 12px; padding: 12px 0; text-decoration: none; align-items: start; }
+  .app img, .app .noicon { width: 52px; height: 52px; border-radius: 23%; background: var(--h0); object-fit: cover; }
+  .app .name { font-weight: 600; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .app .seller { font-size: 14px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-top: 4px; font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .meta .rate { color: var(--ink); }
+  .tag { font-size: 12px; font-weight: 600; padding: 2px 7px; border-radius: 5px; border: 1px solid var(--line); color: var(--ink); }
+  .is-gone img { filter: grayscale(1); opacity: .5; }
+  .is-gone .name { color: var(--muted); }
+  .gone-badge { font: 600 12px var(--text); padding: 3px 8px; border-radius: 5px; border: 1px dashed var(--gone); color: var(--muted); background: transparent; cursor: pointer; min-height: 28px; }
+  [popover] {
+    margin: auto; max-width: min(340px, calc(100vw - 32px)); padding: 16px;
+    border: 1px solid var(--line); border-radius: var(--radius-m);
+    background: var(--surface); color: var(--ink); font-size: 15px;
+  }
+  [popover]::backdrop { background: rgb(0 0 0 / .25); }
+  .sentinel { height: 1px; }
+  .empty { padding: 32px 0; color: var(--muted); }
+
+  /* ---------- filter sheet ---------- */
+  dialog.sheet {
+    width: 100%; max-width: 760px; margin: auto auto 0; padding: 20px 16px calc(16px + env(safe-area-inset-bottom));
+    border: 0; border-radius: var(--radius-m) var(--radius-m) 0 0;
+    background: var(--surface); color: var(--ink); max-height: 85vh;
+  }
+  dialog.sheet::backdrop { background: rgb(0 0 0 / .35); }
+  @media (min-width: 761px) { dialog.sheet { margin: auto; border-radius: var(--radius-m); max-width: 480px; } }
+  .sheet h3 { font: 500 18px var(--display); margin: 0 0 16px; }
+  .sheet fieldset { border: 0; padding: 0; margin: 0 0 18px; }
+  .sheet legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
+  .seg { display: flex; flex-wrap: wrap; gap: 6px; }
+  .seg label { position: relative; }
+  .seg input { position: absolute; opacity: 0; inset: 0; }
+  .seg span { display: inline-flex; align-items: center; min-height: 40px; padding: 0 12px; border: 1px solid var(--line); border-radius: 20px; font-size: 15px; }
+  .seg input:checked + span { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .seg input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; }
+  .toggle input { width: 22px; height: 22px; accent-color: var(--accent); }
+  .sheet-actions { display: grid; grid-template-columns: auto 1fr; gap: 8px; margin-top: 8px; }
+
+  footer { padding: 40px 0 48px; font-size: 14px; color: var(--muted); }
+  footer p { margin: 0 0 8px; max-width: 36em; }
+
+  @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Трекер трекерів</h1>
+    <p class="intro">Усі трекери з українського App Store, які вдалося знайти: звички, гроші, вода, сон, калорії. Список оновлюється щодня.</p>
+    <p class="stamp" id="stamp">Завантаження даних…</p>
+  </header>
+
+  <p class="lead" id="lead"></p>
+
+  <section aria-labelledby="h-grid">
+    <h2 id="h-grid">Нові трекери щодня</h2>
+    <p class="hint">Рядок — місяць, клітинка — день першого релізу. Проведіть пальцем по рядку, щоб побачити число.</p>
+    <div class="grid" id="grid"></div>
+    <p class="readout" id="readout" aria-live="polite"></p>
+    <div class="scale" aria-hidden="true">
+      <span>0</span><i style="background:var(--h0)"></i><i style="background:var(--h1)"></i><i style="background:var(--h2)"></i><i style="background:var(--h3)"></i><i style="background:var(--h4)"></i><i style="background:var(--h5)"></i><span>18+ за день</span>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-niche">
+    <h2 id="h-niche">Ніші</h2>
+    <p class="hint">Число — скільки трекерів ніші вийшло цього року. Натисніть, щоб відфільтрувати каталог.</p>
+    <div class="chips" id="chips"></div>
+  </section>
+
+  <section aria-labelledby="h-cat" id="catalog">
+    <h2 id="h-cat">Каталог</h2>
+    <div class="controls">
+      <input type="search" id="q" placeholder="Назва або розробник" aria-label="Пошук за назвою або розробником" autocomplete="off">
+      <select id="sort" aria-label="Сортування">
+        <option value="new">Спочатку нові</option>
+        <option value="count">Найбільше оцінок</option>
+        <option value="rating">Найвищий рейтинг</option>
+        <option value="updated">Нещодавно оновлені</option>
+        <option value="name">За назвою</option>
+      </select>
+      <button class="btn" id="open-filters" type="button">Фільтри<span class="dot" id="fcount" hidden></span></button>
+    </div>
+    <p class="count" id="count" aria-live="polite"></p>
+    <ul class="list" id="list"></ul>
+    <div class="sentinel" id="sentinel"></div>
+  </section>
+
+  <footer>
+    <p>Дані зібрано через публічний iTunes Search API: 45 пошукових запитів, усі застосунки розробників нових трекерів і щоденна перевірка кожного відомого трекера. Пошук Apple віддає не більше 200 результатів на запит, тож у базі лише ті застосунки, які вдалося знайти.</p>
+    <p>Трекер визначається за назвою застосунку, тому трапляються помилки в обидва боки.</p>
+    <p><a href="https://github.com/1Dante/tracker-of-trackers-appstore">Код і дані на GitHub</a></p>
+  </footer>
+</div>
+
+<dialog class="sheet" id="sheet" aria-labelledby="h-sheet">
+  <form method="dialog" id="filters">
+    <h3 id="h-sheet">Фільтри</h3>
+    <fieldset>
+      <legend>Рік першого релізу</legend>
+      <div class="seg">
+        <label><input type="radio" name="year" value="all" checked><span>Усі</span></label>
+        <label><input type="radio" name="year" value="2026"><span>2026</span></label>
+        <label><input type="radio" name="year" value="2025"><span>2025</span></label>
+        <label><input type="radio" name="year" value="2024"><span>2024</span></label>
+        <label><input type="radio" name="year" value="old"><span>Раніше</span></label>
+      </div>
+    </fieldset>
+    <fieldset>
+      <legend>Кількість оцінок</legend>
+      <div class="seg">
+        <label><input type="radio" name="ratings" value="all" checked><span>Будь-яка</span></label>
+        <label><input type="radio" name="ratings" value="0"><span>Без оцінок</span></label>
+        <label><input type="radio" name="ratings" value="1"><span>1–9</span></label>
+        <label><input type="radio" name="ratings" value="10"><span>10–99</span></label>
+        <label><input type="radio" name="ratings" value="100"><span>100+</span></label>
+      </div>
+    </fieldset>
+    <fieldset>
+      <label class="toggle"><span>Лише з українською мовою</span><input type="checkbox" name="ua"></label>
+      <label class="toggle"><span>Ховати відсутні в App Store</span><input type="checkbox" name="hideGone"></label>
+    </fieldset>
+    <div class="sheet-actions">
+      <button class="btn" type="button" id="reset">Скинути</button>
+      <button class="btn primary" value="apply" id="apply">Показати</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+(() => {
+  const NICHES = {
+    habits: "Звички", money: "Гроші", food: "Калорії та їжа", cycle: "Цикл",
+    mood: "Настрій і щоденник", fitness: "Спорт і кроки", water: "Вода",
+    sleep: "Сон", routine: "Рутина й цілі", subs: "Підписки", other: "Інше"
+  };
+  const PAGE = 30;
+  const $ = (id) => document.getElementById(id);
+
+  const nf = new Intl.NumberFormat("uk-UA");
+  const monthShort = new Intl.DateTimeFormat("uk-UA", { month: "short" });
+  const monthYear = new Intl.DateTimeFormat("uk-UA", { month: "long", year: "numeric" });
+  const fullDateFmt = new Intl.DateTimeFormat("uk-UA", { day: "numeric", month: "long", year: "numeric" });
+  const fullDate = { format: (d) => fullDateFmt.format(d).replace(/\s?р\.$/, "") };   // drop trailing "р."
+  const relDate = new Intl.DateTimeFormat("uk-UA", { month: "short", year: "numeric" });
+  const toDate = (s) => new Date(s + "T00:00:00Z");
+
+  // Ukrainian plural: 1 трекер, 2 трекери, 5 трекерів
+  const plural = (n, one, few, many) => {
+    const a = Math.abs(n) % 100, b = a % 10;
+    if (a > 10 && a < 20) return many;
+    if (b === 1) return one;
+    if (b >= 2 && b <= 4) return few;
+    return many;
+  };
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+  let DATA, apps = [], view = [], shown = 0;
+  const state = { niche: null, q: "", sort: "new", year: "all", ratings: "all", ua: false, hideGone: false };
+
+  fetch("data/site.json", { cache: "no-cache" })
+    .then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then((d) => { DATA = d; apps = d.apps; init(); })
+    .catch(() => { $("stamp").textContent = "Не вдалося завантажити дані. Оновіть сторінку."; });
+
+  function init() {
+    $("stamp").textContent = `Дані на ${fullDate.format(toDate(DATA.updated))}. У базі ${nf.format(DATA.total)} ${plural(DATA.total, "трекер", "трекери", "трекерів")}.`;
+    renderLead();
+    renderGrid();
+    renderChips();
+    bindCatalog();
+    applyFilters();
+  }
+
+  // ---------- lead ----------
+  function renderLead() {
+    const y = DATA.years, now = DATA.updated.slice(0, 4), prev = String(now - 1);
+    const cur = y[now] || 0, last = y[prev] || 0;
+    let txt = `У ${now} році вийшло вже <strong>${nf.format(cur)}</strong> ${plural(cur, "новий трекер", "нових трекери", "нових трекерів")}.`;
+    if (last) txt += ` Це у ${(cur / last).toLocaleString("uk-UA", { maximumFractionDigits: 1 })} раза більше, ніж за весь ${prev}-й.`;
+    if (DATA.zero2026 != null) txt += ` У ${DATA.zero2026}% з них немає жодної оцінки.`;
+    $("lead").innerHTML = txt;
+  }
+
+  // ---------- streak grid: one row per month, one cell per day ----------
+  function level(n) { return n === 0 ? 0 : n < 3 ? 1 : n < 6 ? 2 : n < 11 ? 3 : n < 18 ? 4 : 5; }
+
+  function renderGrid() {
+    const grid = $("grid"), daily = DATA.daily, end = toDate(DATA.updated);
+    const rows = [];
+    for (let y = end.getUTCFullYear(), m = end.getUTCMonth(); y > 2024 || (y === 2024 && m >= 0); m--) {
+      if (m < 0) { m = 11; y--; if (y < 2024) break; }
+      rows.push([y, m]);
+    }
+    const frag = document.createDocumentFragment();
+    for (const [y, m] of rows) {
+      const days = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+      const first = new Date(Date.UTC(y, m, 1));
+      let total = 0;
+      const label = document.createElement("div");
+      label.className = "m";
+      label.textContent = `${monthShort.format(first).replace(".", "")} ${String(y).slice(2)}`;
+      frag.append(label);
+      for (let d = 1; d <= 31; d++) {
+        const c = document.createElement("div");
+        c.className = "c";
+        const key = `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+        if (d > days || toDate(key) > end) { c.classList.add("x"); }
+        else { const n = daily[key] || 0; total += n; c.dataset.l = level(n); c.dataset.k = key; c.dataset.n = n; }
+        frag.append(c);
+      }
+      const t = document.createElement("div");
+      t.className = "t";
+      t.textContent = total;
+      label.setAttribute("aria-label", `${monthYear.format(first)}: ${total} ${plural(total, "трекер", "трекери", "трекерів")}`);
+      frag.append(t);
+    }
+    grid.append(frag);
+
+    let active = null;
+    const show = (el) => {
+      if (!el || !el.dataset.k || el === active) return;
+      active?.classList.remove("on");
+      active = el; el.classList.add("on");
+      const n = +el.dataset.n;
+      $("readout").textContent = `${fullDate.format(toDate(el.dataset.k))}: ${n} ${plural(n, "новий трекер", "нові трекери", "нових трекерів")}`;
+    };
+    const pick = (e) => show(document.elementFromPoint(e.clientX, e.clientY));
+    grid.addEventListener("pointerdown", pick);
+    grid.addEventListener("pointermove", pick);
+    grid.addEventListener("click", pick);   // mouse hover, or finger dragged along a row
+  }
+
+  // ---------- niches ----------
+  function renderChips() {
+    const year = DATA.updated.slice(0, 4);
+    const counts = {};
+    for (const a of apps) if (a.d.startsWith(year)) counts[a.k] = (counts[a.k] || 0) + 1;
+    const keys = Object.keys(NICHES).filter((k) => k !== "other").sort((a, b) => (counts[b] || 0) - (counts[a] || 0));
+    keys.push("other");
+    $("chips").innerHTML = keys.map((k) =>
+      `<button class="chip" type="button" data-k="${k}" aria-pressed="false">${NICHES[k]}<small>${nf.format(counts[k] || 0)}</small></button>`).join("");
+    $("chips").addEventListener("click", (e) => {
+      const b = e.target.closest(".chip"); if (!b) return;
+      state.niche = state.niche === b.dataset.k ? null : b.dataset.k;
+      for (const c of $("chips").children) c.setAttribute("aria-pressed", String(c.dataset.k === state.niche));
+      applyFilters();
+    });
+  }
+
+  // ---------- catalog ----------
+  function bindCatalog() {
+    let t;
+    $("q").addEventListener("input", (e) => { clearTimeout(t); t = setTimeout(() => { state.q = e.target.value.trim().toLowerCase(); applyFilters(); }, 150); });
+    $("sort").addEventListener("change", (e) => { state.sort = e.target.value; applyFilters(); });
+
+    const sheet = $("sheet"), form = $("filters");
+    $("open-filters").addEventListener("click", () => { syncForm(); sheet.showModal(); });
+    sheet.addEventListener("click", (e) => { if (e.target === sheet) sheet.close(); });   // tap on backdrop
+    form.addEventListener("change", () => { $("apply").textContent = `Показати ${nf.format(filter(readForm()).length)}`; });
+    $("reset").addEventListener("click", () => { form.reset(); form.dispatchEvent(new Event("change")); });
+    sheet.addEventListener("close", () => { if (sheet.returnValue === "apply") { Object.assign(state, readForm()); applyFilters(); } });
+
+    new IntersectionObserver((es) => { if (es[0].isIntersecting) renderMore(); }, { rootMargin: "600px" }).observe($("sentinel"));
+  }
+
+  function readForm() {
+    const f = new FormData($("filters"));
+    return { year: f.get("year"), ratings: f.get("ratings"), ua: f.has("ua"), hideGone: f.has("hideGone") };
+  }
+  function syncForm() {
+    const form = $("filters");
+    form.year.value = state.year; form.ratings.value = state.ratings;
+    form.ua.checked = state.ua; form.hideGone.checked = state.hideGone;
+    form.dispatchEvent(new Event("change"));
+  }
+
+  function filter(f) {
+    const s = { ...state, ...f };
+    return apps.filter((a) => {
+      if (s.niche && a.k !== s.niche) return false;
+      if (s.q && !(a.n.toLowerCase().includes(s.q) || (a.s || "").toLowerCase().includes(s.q))) return false;
+      if (s.year === "old" ? a.d >= "2024" : s.year !== "all" && !a.d.startsWith(s.year)) return false;
+      if (s.ratings === "0" && a.c !== 0) return false;
+      if (s.ratings === "1" && (a.c < 1 || a.c > 9)) return false;
+      if (s.ratings === "10" && (a.c < 10 || a.c > 99)) return false;
+      if (s.ratings === "100" && a.c < 100) return false;
+      if (s.ua && !a.ua) return false;
+      if (s.hideGone && a.g) return false;
+      return true;
+    });
+  }
+
+  const SORTS = {
+    new: (a, b) => b.d.localeCompare(a.d),
+    count: (a, b) => b.c - a.c,
+    rating: (a, b) => b.r - a.r || b.c - a.c,
+    updated: (a, b) => b.u.localeCompare(a.u),
+    name: (a, b) => a.n.localeCompare(b.n, "uk")
+  };
+
+  function applyFilters() {
+    view = filter({}).sort(SORTS[state.sort]);
+    const active = (state.year !== "all") + (state.ratings !== "all") + state.ua + state.hideGone;
+    $("fcount").hidden = !active; $("fcount").textContent = active;
+    $("count").textContent = `Знайдено ${nf.format(view.length)} ${plural(view.length, "трекер", "трекери", "трекерів")}`;
+    $("list").innerHTML = ""; shown = 0;
+    if (!view.length) { $("list").innerHTML = `<li class="empty">Нічого не знайдено. Змініть пошук або скиньте фільтри.</li>`; return; }
+    renderMore();
+  }
+
+  function renderMore() {
+    if (shown >= view.length) return;
+    const html = view.slice(shown, shown + PAGE).map(card).join("");
+    $("list").insertAdjacentHTML("beforeend", html);
+    shown += PAGE;
+  }
+
+  function card(a) {
+    const icon = a.ic ? `<img src="https://${esc(a.ic)}/100x100bb.jpg" alt="" loading="lazy" width="52" height="52" onerror="this.outerHTML='<span class=noicon></span>'">` : `<span class="noicon"></span>`;
+    const rate = a.c ? `<span class="rate">★ ${a.r.toLocaleString("uk-UA", { minimumFractionDigits: 1 })}</span><span>${nf.format(a.c)} ${plural(a.c, "оцінка", "оцінки", "оцінок")}</span>` : `<span>Без оцінок</span>`;
+    const rel = a.d ? `<span>${relDate.format(toDate(a.d)).replace(" р.", "")}</span>` : "";
+    const ua = a.ua ? `<span class="tag" title="Є українська локалізація">UA</span>` : "";
+    const gone = a.g ? `<button class="gone-badge" type="button" popovertarget="g${a.id}">Відсутній в App Store</button>
+      <div id="g${a.id}" popover>Застосунок не знайдено в українському App Store з ${fullDate.format(toDate(a.g))}. Розробник міг зняти його з продажу або прибрати Україну зі списку країн.</div>` : "";
+    const body = `${icon}<div><div class="name">${esc(a.n)}</div><div class="seller">${esc(a.s)}</div><div class="meta">${rate}${rel}${ua}${gone}</div></div>`;
+    return a.g
+      ? `<li class="is-gone"><div class="app">${body}</div></li>`
+      : `<li><a class="app" href="https://apps.apple.com/ua/app/id${a.id}" target="_blank" rel="noopener">${body}</a></li>`;
+  }
+})();
+</script>
+</body>
+</html>
