@@ -212,7 +212,7 @@
 
   <section aria-labelledby="h-niche">
     <h2 id="h-niche">Ніші</h2>
-    <p class="hint">Число — скільки трекерів ніші вийшло цього року. Натисніть, щоб відфільтрувати каталог.</p>
+    <p class="hint">Число — скільки трекерів ніші в каталозі з урахуванням фільтрів. Натисніть, щоб показати лише цю нішу.</p>
     <div class="chips" id="chips"></div>
   </section>
 
@@ -318,13 +318,12 @@
     $("stamp").textContent = `Дані на ${fullDate.format(toDate(DATA.updated))}. У базі ${nf.format(apps.length)} ${plural(apps.length, "трекер", "трекери", "трекерів")}, з них ${nf.format(ua)} з українською мовою.`;
     document.querySelector(".scope").addEventListener("change", (e) => {
       state.scope = e.target.value;
-      renderLead(); renderChips(); if ($("more").open) renderGrid(); applyFilters();
+      renderLead(); if ($("more").open) renderGrid(); applyFilters();
     });
     // the grid is heavy-ish, so build it only when someone opens it
     $("more").addEventListener("toggle", () => { if ($("more").open && !$("grid").childElementCount) renderGrid(); });
     bindGrid();
     renderLead();
-    renderChips();
     bindChips();
     bindCatalog();
     applyFilters();
@@ -339,7 +338,7 @@
     const zero = cur.length ? Math.round(cur.filter((a) => a.c === 0).length * 100 / cur.length) : 0;
     const what = state.scope === "ua" ? "з українською мовою " : "";
     let txt = `У ${now} році вийшло щонайменше <strong>${nf.format(cur.length)}</strong> ${plural(cur.length, "новий трекер", "нових трекери", "нових трекерів")} ${what}.`.replace(" .", ".");
-    if (last) txt += ` Це у ${(cur.length / last).toLocaleString("uk-UA", { maximumFractionDigits: 1 })} раза більше, ніж за весь ${prev}-й.`;
+    if (last) txt += ` Це у ${(cur.length / last).toLocaleString("uk-UA", { maximumFractionDigits: 1 })} раза більше, ніж за весь ${prev}\u2011й.`;
     if (cur.length) txt += ` У ${zero}% з них немає жодної оцінки.`;
     $("lead").innerHTML = txt;
   }
@@ -426,17 +425,22 @@
   }
 
   // ---------- niches ----------
+  // Chip numbers = what the catalog would show for that niche with the current filters,
+  // so "Усі" always matches "Знайдено N". Order is fixed by overall size, so chips don't jump around.
+  let chipOrder = null;
   function renderChips() {
-    const year = DATA.updated.slice(0, 4);
+    if (!chipOrder) {
+      const total = {};
+      for (const a of apps) total[a.k] = (total[a.k] || 0) + 1;
+      chipOrder = Object.keys(NICHES).filter((k) => k !== "other").sort((a, b) => (total[b] || 0) - (total[a] || 0));
+      chipOrder.push("other");
+    }
+    const base = filter({ niche: null });
     const counts = {};
-    for (const a of scoped()) if (a.d.startsWith(year)) counts[a.k] = (counts[a.k] || 0) + 1;
-    const keys = Object.keys(NICHES).filter((k) => k !== "other").sort((a, b) => (counts[b] || 0) - (counts[a] || 0));
-    keys.push("other");
-    const all = Object.values(counts).reduce((a, b) => a + b, 0);
-    // "Усі" is just a chip with an empty key: pressing it clears the niche filter
+    for (const a of base) counts[a.k] = (counts[a.k] || 0) + 1;
     $("chips").innerHTML =
-      `<button class="chip" type="button" data-k="" aria-pressed="${!state.niche}">Усі<small>${nf.format(all)}</small></button>` +
-      keys.map((k) =>
+      `<button class="chip" type="button" data-k="" aria-pressed="${!state.niche}">Усі<small>${nf.format(base.length)}</small></button>` +
+      chipOrder.map((k) =>
         `<button class="chip" type="button" data-k="${k}" aria-pressed="${k === state.niche}">${NICHES[k]}<small>${nf.format(counts[k] || 0)}</small></button>`).join("");
   }
 
@@ -445,7 +449,6 @@
       const b = e.target.closest(".chip"); if (!b) return;
       const k = b.dataset.k || null;
       state.niche = state.niche === k ? null : k;   // tapping the active niche again also shows all
-      for (const c of $("chips").children) c.setAttribute("aria-pressed", String((c.dataset.k || null) === state.niche));
       applyFilters();
     });
   }
@@ -502,6 +505,7 @@
   };
 
   function applyFilters() {
+    renderChips();
     view = filter({}).sort(SORTS[state.sort]);
     const active = (state.year !== "all") + (state.ratings !== "all") + state.hideGone;
     $("fcount").hidden = !active; $("fcount").textContent = active;
