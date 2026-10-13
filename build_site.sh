@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Builds data/site.json: a slim, site-only view of data/apps.json
 #   - only the fields the page needs (short keys keep the file small)
-#   - niche per app, daily release counts, summary numbers
+#   - niche per app (stats are computed in the page)
 set -euo pipefail
 
 TODAY="${TODAY:-$(date -u +%F)}"
@@ -42,20 +42,11 @@ jq --arg today "$TODAY" '
       }
   ] as $apps
 
-  # Released apps only (pre-orders have a future release date)
-  | ($apps | map(select(.d != "" and .d <= $today))) as $released
-
+  # Summary numbers are computed in the page, so it can switch between UA-only and all
   | {
       updated: $today,
       total:   ($apps | length),
       gone:    ($apps | map(select(.g)) | length),
-      years:   ($released | group_by(.d[:4]) | map({key: .[0].d[:4], value: length}) | from_entries),
-      daily:   ($released | map(select(.d >= "2024-01-01")) | group_by(.d)
-                 | map({key: .[0].d, value: length}) | from_entries),
-      zero2026: (($released | map(select(.d[:4] == "2026"))) as $y
-                 | if ($y | length) > 0
-                   then ($y | map(select(.c == 0)) | length) * 100 / ($y | length) | round
-                   else 0 end),
       apps:    ($apps | sort_by(.d) | reverse)
     }
 ' data/apps.json > data/site.json

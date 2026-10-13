@@ -62,6 +62,19 @@
   .intro { margin: 0; color: var(--muted); max-width: 34em; }
   .stamp { margin: 6px 0 0; font-size: 14px; color: var(--muted); }
 
+  .scope { margin-top: 18px; }
+
+  /* ---------- collapsible daily grid ---------- */
+  details.more { margin: 28px 0 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  details.more summary {
+    list-style: none; cursor: pointer; min-height: 52px; display: flex; align-items: center; justify-content: space-between;
+    font: 500 18px/1.25 var(--display); letter-spacing: -0.01em;
+  }
+  details.more summary::-webkit-details-marker { display: none; }
+  details.more summary::after { content: "Показати"; font: 500 14px var(--text); color: var(--accent); }
+  details.more[open] summary::after { content: "Сховати"; }
+  details.more[open] { padding-bottom: 20px; }
+
   /* ---------- lead ---------- */
   .lead { margin: 28px 0 8px; font-size: 19px; line-height: 1.45; max-width: 30em; }
   .lead strong { font: 700 1.25em/1 var(--display); letter-spacing: -0.01em; }
@@ -163,6 +176,9 @@
   .toggle input { width: 22px; height: 22px; accent-color: var(--accent); }
   .sheet-actions { display: grid; grid-template-columns: auto 1fr; gap: 8px; margin-top: 8px; }
 
+  .hover-only { display: none; }
+  @media (hover: hover) and (pointer: fine) { .hover-only { display: inline; } .touch-only { display: none; } }
+
   footer { padding: 40px 0 48px; font-size: 14px; color: var(--muted); }
   footer p { margin: 0 0 8px; max-width: 36em; }
 
@@ -175,25 +191,30 @@
     <h1>Трекер трекерів</h1>
     <p class="intro">Усі трекери з українського App Store, які вдалося знайти: звички, гроші, вода, сон, калорії. Список оновлюється щодня.</p>
     <p class="stamp" id="stamp">Завантаження даних…</p>
+    <div class="seg scope" role="radiogroup" aria-label="Які трекери показувати">
+      <label><input type="radio" name="scope" value="ua" checked><span>З українською мовою</span></label>
+      <label><input type="radio" name="scope" value="all"><span>Усі в українському App Store</span></label>
+    </div>
   </header>
 
   <p class="lead" id="lead"></p>
-
-  <section aria-labelledby="h-grid">
-    <h2 id="h-grid">Нові трекери щодня</h2>
-    <p class="hint">Рядок — місяць, клітинка — день першого релізу. Проведіть пальцем по рядку, щоб побачити число.</p>
-    <div class="grid" id="grid"></div>
-    <p class="readout" id="readout" aria-live="polite"></p>
-    <div class="scale" aria-hidden="true">
-      <span>0</span><i style="background:var(--h0)"></i><i style="background:var(--h1)"></i><i style="background:var(--h2)"></i><i style="background:var(--h3)"></i><i style="background:var(--h4)"></i><i style="background:var(--h5)"></i><span>18+ за день</span>
-    </div>
-  </section>
 
   <section aria-labelledby="h-niche">
     <h2 id="h-niche">Ніші</h2>
     <p class="hint">Число — скільки трекерів ніші вийшло цього року. Натисніть, щоб відфільтрувати каталог.</p>
     <div class="chips" id="chips"></div>
   </section>
+
+  <details class="more" id="more">
+    <summary>Нові трекери щодня</summary>
+    <p class="hint">Рядок — місяць, клітинка — день першого релізу. <span class="touch-only">Проведіть пальцем по рядку, щоб побачити число.</span><span class="hover-only">Наведіть курсор на клітинку, щоб побачити число.</span></p>
+    <p class="hint">Цифри за минулі місяці ще ростуть: база щодня знаходить застосунки, які вийшли давно, але раніше не траплялися.</p>
+    <div class="grid" id="grid"></div>
+    <p class="readout" id="readout" aria-live="polite"></p>
+    <div class="scale" aria-hidden="true">
+      <span>0</span><i style="background:var(--h0)"></i><i style="background:var(--h1)"></i><i style="background:var(--h2)"></i><i style="background:var(--h3)"></i><i style="background:var(--h4)"></i><i style="background:var(--h5)"></i><span>18+ за день</span>
+    </div>
+  </details>
 
   <section aria-labelledby="h-cat" id="catalog">
     <h2 id="h-cat">Каталог</h2>
@@ -244,7 +265,6 @@
       </div>
     </fieldset>
     <fieldset>
-      <label class="toggle"><span>Лише з українською мовою</span><input type="checkbox" name="ua"></label>
       <label class="toggle"><span>Ховати відсутні в App Store</span><input type="checkbox" name="hideGone"></label>
     </fieldset>
     <div class="sheet-actions">
@@ -283,7 +303,9 @@
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
   let DATA, apps = [], view = [], shown = 0;
-  const state = { niche: null, q: "", sort: "new", year: "all", ratings: "all", ua: false, hideGone: false };
+  const state = { scope: "ua", niche: null, q: "", sort: "new", year: "all", ratings: "all", hideGone: false };
+  const scoped = () => state.scope === "ua" ? apps.filter((a) => a.ua) : apps;
+  const isReleased = (a) => a.d && a.d <= DATA.updated;   // pre-orders have a future release date
 
   fetch("data/site.json", { cache: "no-cache" })
     .then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); })
@@ -291,21 +313,33 @@
     .catch(() => { $("stamp").textContent = "Не вдалося завантажити дані. Оновіть сторінку."; });
 
   function init() {
-    $("stamp").textContent = `Дані на ${fullDate.format(toDate(DATA.updated))}. У базі ${nf.format(DATA.total)} ${plural(DATA.total, "трекер", "трекери", "трекерів")}.`;
+    const ua = apps.filter((a) => a.ua).length;
+    $("stamp").textContent = `Дані на ${fullDate.format(toDate(DATA.updated))}. У базі ${nf.format(apps.length)} ${plural(apps.length, "трекер", "трекери", "трекерів")}, з них ${nf.format(ua)} з українською мовою.`;
+    document.querySelector(".scope").addEventListener("change", (e) => {
+      state.scope = e.target.value;
+      renderLead(); renderChips(); if ($("more").open) renderGrid(); applyFilters();
+    });
+    // the grid is heavy-ish, so build it only when someone opens it
+    $("more").addEventListener("toggle", () => { if ($("more").open && !$("grid").childElementCount) renderGrid(); });
+    bindGrid();
     renderLead();
-    renderGrid();
     renderChips();
+    bindChips();
     bindCatalog();
     applyFilters();
   }
 
   // ---------- lead ----------
   function renderLead() {
-    const y = DATA.years, now = DATA.updated.slice(0, 4), prev = String(now - 1);
-    const cur = y[now] || 0, last = y[prev] || 0;
-    let txt = `У ${now} році вийшло вже <strong>${nf.format(cur)}</strong> ${plural(cur, "новий трекер", "нових трекери", "нових трекерів")}.`;
-    if (last) txt += ` Це у ${(cur / last).toLocaleString("uk-UA", { maximumFractionDigits: 1 })} раза більше, ніж за весь ${prev}-й.`;
-    if (DATA.zero2026 != null) txt += ` У ${DATA.zero2026}% з них немає жодної оцінки.`;
+    const now = DATA.updated.slice(0, 4), prev = String(now - 1);
+    const rel = scoped().filter(isReleased);
+    const cur = rel.filter((a) => a.d.startsWith(now));
+    const last = rel.filter((a) => a.d.startsWith(prev)).length;
+    const zero = cur.length ? Math.round(cur.filter((a) => a.c === 0).length * 100 / cur.length) : 0;
+    const what = state.scope === "ua" ? "з українською мовою " : "";
+    let txt = `У ${now} році вийшло щонайменше <strong>${nf.format(cur.length)}</strong> ${plural(cur.length, "новий трекер", "нових трекери", "нових трекерів")} ${what}.`.replace(" .", ".");
+    if (last) txt += ` Це у ${(cur.length / last).toLocaleString("uk-UA", { maximumFractionDigits: 1 })} раза більше, ніж за весь ${prev}-й.`;
+    if (cur.length) txt += ` У ${zero}% з них немає жодної оцінки.`;
     $("lead").innerHTML = txt;
   }
 
@@ -313,9 +347,11 @@
   function level(n) { return n === 0 ? 0 : n < 3 ? 1 : n < 6 ? 2 : n < 11 ? 3 : n < 18 ? 4 : 5; }
 
   function renderGrid() {
-    const grid = $("grid"), daily = DATA.daily, end = toDate(DATA.updated);
+    const grid = $("grid"), end = toDate(DATA.updated);
+    const daily = {};
+    for (const a of scoped()) if (isReleased(a) && a.d >= "2024-01-01") daily[a.d] = (daily[a.d] || 0) + 1;
     const rows = [];
-    for (let y = end.getUTCFullYear(), m = end.getUTCMonth(); y > 2024 || (y === 2024 && m >= 0); m--) {
+    for (let y = end.getUTCFullYear(), m = end.getUTCMonth(); y >= 2024; m--) {
       if (m < 0) { m = 11; y--; if (y < 2024) break; }
       rows.push([y, m]);
     }
@@ -342,8 +378,12 @@
       label.setAttribute("aria-label", `${monthYear.format(first)}: ${total} ${plural(total, "трекер", "трекери", "трекерів")}`);
       frag.append(t);
     }
-    grid.append(frag);
+    grid.replaceChildren(frag);
+    $("readout").textContent = "";
+  }
 
+  function bindGrid() {
+    const grid = $("grid");
     let active = null;
     const show = (el) => {
       if (!el || !el.dataset.k || el === active) return;
@@ -354,19 +394,22 @@
     };
     const pick = (e) => show(document.elementFromPoint(e.clientX, e.clientY));
     grid.addEventListener("pointerdown", pick);
-    grid.addEventListener("pointermove", pick);
-    grid.addEventListener("click", pick);   // mouse hover, or finger dragged along a row
+    grid.addEventListener("pointermove", pick);   // mouse hover, or finger dragged along a row
+    grid.addEventListener("click", pick);
   }
 
   // ---------- niches ----------
   function renderChips() {
     const year = DATA.updated.slice(0, 4);
     const counts = {};
-    for (const a of apps) if (a.d.startsWith(year)) counts[a.k] = (counts[a.k] || 0) + 1;
+    for (const a of scoped()) if (a.d.startsWith(year)) counts[a.k] = (counts[a.k] || 0) + 1;
     const keys = Object.keys(NICHES).filter((k) => k !== "other").sort((a, b) => (counts[b] || 0) - (counts[a] || 0));
     keys.push("other");
     $("chips").innerHTML = keys.map((k) =>
-      `<button class="chip" type="button" data-k="${k}" aria-pressed="false">${NICHES[k]}<small>${nf.format(counts[k] || 0)}</small></button>`).join("");
+      `<button class="chip" type="button" data-k="${k}" aria-pressed="${k === state.niche}">${NICHES[k]}<small>${nf.format(counts[k] || 0)}</small></button>`).join("");
+  }
+
+  function bindChips() {
     $("chips").addEventListener("click", (e) => {
       const b = e.target.closest(".chip"); if (!b) return;
       state.niche = state.niche === b.dataset.k ? null : b.dataset.k;
@@ -393,12 +436,12 @@
 
   function readForm() {
     const f = new FormData($("filters"));
-    return { year: f.get("year"), ratings: f.get("ratings"), ua: f.has("ua"), hideGone: f.has("hideGone") };
+    return { year: f.get("year"), ratings: f.get("ratings"), hideGone: f.has("hideGone") };
   }
   function syncForm() {
     const form = $("filters");
     form.year.value = state.year; form.ratings.value = state.ratings;
-    form.ua.checked = state.ua; form.hideGone.checked = state.hideGone;
+    form.hideGone.checked = state.hideGone;
     form.dispatchEvent(new Event("change"));
   }
 
@@ -412,7 +455,7 @@
       if (s.ratings === "1" && (a.c < 1 || a.c > 9)) return false;
       if (s.ratings === "10" && (a.c < 10 || a.c > 99)) return false;
       if (s.ratings === "100" && a.c < 100) return false;
-      if (s.ua && !a.ua) return false;
+      if (s.scope === "ua" && !a.ua) return false;
       if (s.hideGone && a.g) return false;
       return true;
     });
@@ -428,7 +471,7 @@
 
   function applyFilters() {
     view = filter({}).sort(SORTS[state.sort]);
-    const active = (state.year !== "all") + (state.ratings !== "all") + state.ua + state.hideGone;
+    const active = (state.year !== "all") + (state.ratings !== "all") + state.hideGone;
     $("fcount").hidden = !active; $("fcount").textContent = active;
     $("count").textContent = `Знайдено ${nf.format(view.length)} ${plural(view.length, "трекер", "трекери", "трекерів")}`;
     $("list").innerHTML = ""; shown = 0;
