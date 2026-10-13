@@ -74,6 +74,7 @@
   details.more summary::after { content: "Показати"; font: 500 14px var(--text); color: var(--accent); }
   details.more[open] summary::after { content: "Сховати"; }
   details.more[open] { padding-bottom: 20px; }
+  details.more + section { padding-top: 28px; }
 
   /* ---------- lead ---------- */
   .lead { margin: 28px 0 8px; font-size: 19px; line-height: 1.45; max-width: 30em; }
@@ -86,12 +87,12 @@
   /* ---------- streak grid ---------- */
   .grid {
     display: grid; gap: 2px;
-    grid-template-columns: 46px repeat(31, minmax(0, 1fr)) 38px;
+    grid-template-columns: 54px repeat(31, minmax(0, 1fr)) 34px;
     touch-action: pan-y; user-select: none; -webkit-user-select: none;
   }
-  .grid .m { font-size: 12px; color: var(--muted); align-self: center; white-space: nowrap; }
-  .grid .t { font-size: 12px; color: var(--muted); text-align: right; align-self: center; font-variant-numeric: tabular-nums; }
-  .grid .c { aspect-ratio: 1; border-radius: 2px; background: var(--h0); }
+  .grid .m { font-size: 12px; line-height: 1; color: var(--muted); align-self: center; white-space: nowrap; }
+  .grid .t { font-size: 12px; line-height: 1; color: var(--muted); text-align: right; align-self: center; font-variant-numeric: tabular-nums; }
+  .grid .c { aspect-ratio: 1; border-radius: 2px; background: var(--h0); align-self: center; }   /* rows are taller than tiny cells on phones */
   .grid .c.x { background: transparent; }
   .grid .c[data-l="1"] { background: var(--h1); }
   .grid .c[data-l="2"] { background: var(--h2); }
@@ -176,8 +177,6 @@
   .toggle input { width: 22px; height: 22px; accent-color: var(--accent); }
   .sheet-actions { display: grid; grid-template-columns: auto 1fr; gap: 8px; margin-top: 8px; }
 
-  .hover-only { display: none; }
-  @media (hover: hover) and (pointer: fine) { .hover-only { display: inline; } .touch-only { display: none; } }
 
   footer { padding: 40px 0 48px; font-size: 14px; color: var(--muted); }
   footer p { margin: 0 0 8px; max-width: 36em; }
@@ -189,7 +188,7 @@
 <div class="wrap">
   <header>
     <h1>Трекер трекерів</h1>
-    <p class="intro">Усі трекери з українського App Store, які вдалося знайти: звички, гроші, вода, сон, калорії. Список оновлюється щодня.</p>
+    <p class="intro">Усі трекери з українського App Store, які вдалося знайти: звички, гроші, вода, сон, калорії тощо. Список оновлюється щодня.</p>
     <p class="stamp" id="stamp">Завантаження даних…</p>
     <div class="seg scope" role="radiogroup" aria-label="Які трекери показувати">
       <label><input type="radio" name="scope" value="ua" checked><span>З українською мовою</span></label>
@@ -199,15 +198,9 @@
 
   <p class="lead" id="lead"></p>
 
-  <section aria-labelledby="h-niche">
-    <h2 id="h-niche">Ніші</h2>
-    <p class="hint">Число — скільки трекерів ніші вийшло цього року. Натисніть, щоб відфільтрувати каталог.</p>
-    <div class="chips" id="chips"></div>
-  </section>
-
   <details class="more" id="more">
     <summary>Нові трекери щодня</summary>
-    <p class="hint">Рядок — місяць, клітинка — день першого релізу. <span class="touch-only">Проведіть пальцем по рядку, щоб побачити число.</span><span class="hover-only">Наведіть курсор на клітинку, щоб побачити число.</span></p>
+    <p class="hint">Рядок — місяць, клітинка — день першого релізу. Торкніться рядка або проведіть по ньому пальцем (на комп’ютері — наведіть курсор), щоб побачити число за день. Торкніться назви місяця, щоб побачити суму.</p>
     <p class="hint">Цифри за минулі місяці ще ростуть: база щодня знаходить застосунки, які вийшли давно, але раніше не траплялися.</p>
     <div class="grid" id="grid"></div>
     <p class="readout" id="readout" aria-live="polite"></p>
@@ -215,6 +208,13 @@
       <span>0</span><i style="background:var(--h0)"></i><i style="background:var(--h1)"></i><i style="background:var(--h2)"></i><i style="background:var(--h3)"></i><i style="background:var(--h4)"></i><i style="background:var(--h5)"></i><span>18+ за день</span>
     </div>
   </details>
+
+  <section aria-labelledby="h-niche">
+    <h2 id="h-niche">Ніші</h2>
+    <p class="hint">Число — скільки трекерів ніші вийшло цього року. Натисніть, щоб відфільтрувати каталог.</p>
+    <div class="chips" id="chips"></div>
+  </section>
+
 
   <section aria-labelledby="h-cat" id="catalog">
     <h2 id="h-cat">Каталог</h2>
@@ -375,7 +375,7 @@
       const t = document.createElement("div");
       t.className = "t";
       t.textContent = total;
-      label.setAttribute("aria-label", `${monthYear.format(first)}: ${total} ${plural(total, "трекер", "трекери", "трекерів")}`);
+      label.setAttribute("aria-label", `${monthYear.format(first).replace(/\s?р\.$/, "")}: ${total} ${plural(total, "трекер", "трекери", "трекерів")}`);
       frag.append(t);
     }
     grid.replaceChildren(frag);
@@ -383,19 +383,45 @@
   }
 
   function bindGrid() {
-    const grid = $("grid");
+    const grid = $("grid"), COLS = 33;   // month label + 31 days + month total
     let active = null;
-    const show = (el) => {
-      if (!el || !el.dataset.k || el === active) return;
-      active?.classList.remove("on");
-      active = el; el.classList.add("on");
-      const n = +el.dataset.n;
-      $("readout").textContent = `${fullDate.format(toDate(el.dataset.k))}: ${n} ${plural(n, "новий трекер", "нові трекери", "нових трекерів")}`;
+
+    const setActive = (el) => { active?.classList.remove("on"); active = el; el?.classList.add("on"); };
+
+    // Find the cell under (x, y) by geometry instead of hit-testing:
+    // works on the 2px gaps and on cells that are smaller than a fingertip.
+    const locate = (x, y) => {
+      const kids = grid.children;
+      if (kids.length < COLS * 2) return null;
+      const first = kids[1].getBoundingClientRect();
+      const colW = kids[2].getBoundingClientRect().left - first.left;
+      const rowH = kids[COLS + 1].getBoundingClientRect().top - first.top;
+      const row = Math.floor((y - first.top + (rowH - first.height) / 2) / rowH);
+      if (row < 0 || row >= kids.length / COLS) return null;
+      if (x < first.left - 2) return { label: kids[row * COLS] };   // finger on the month name
+      const col = Math.min(30, Math.max(0, Math.floor((x - first.left + (colW - first.width) / 2) / colW)));
+      return { cell: kids[row * COLS + 1 + col], label: kids[row * COLS] };
     };
-    const pick = (e) => show(document.elementFromPoint(e.clientX, e.clientY));
-    grid.addEventListener("pointerdown", pick);
-    grid.addEventListener("pointermove", pick);   // mouse hover, or finger dragged along a row
-    grid.addEventListener("click", pick);
+
+    const show = (x, y) => {
+      const hit = locate(x, y);
+      if (!hit) return;
+      if (hit.cell && hit.cell.dataset.k) {
+        if (hit.cell === active) return;
+        setActive(hit.cell);
+        const n = +hit.cell.dataset.n;
+        $("readout").textContent = `${fullDate.format(toDate(hit.cell.dataset.k))}: ${n} ${plural(n, "новий трекер", "нові трекери", "нових трекерів")}`;
+      } else if (!hit.cell && hit.label) {
+        setActive(null);
+        $("readout").textContent = hit.label.getAttribute("aria-label");
+      }
+    };
+
+    grid.addEventListener("pointerdown", (e) => show(e.clientX, e.clientY));
+    grid.addEventListener("pointermove", (e) => show(e.clientX, e.clientY));   // mouse hover or finger drag
+    grid.addEventListener("click", (e) => show(e.clientX, e.clientY));
+    // older iOS Safari sometimes drops pointermove during a touch drag
+    grid.addEventListener("touchmove", (e) => { const t = e.touches[0]; if (t) show(t.clientX, t.clientY); }, { passive: true });
   }
 
   // ---------- niches ----------
