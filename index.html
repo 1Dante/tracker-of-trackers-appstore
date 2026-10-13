@@ -432,15 +432,20 @@
     for (const a of scoped()) if (a.d.startsWith(year)) counts[a.k] = (counts[a.k] || 0) + 1;
     const keys = Object.keys(NICHES).filter((k) => k !== "other").sort((a, b) => (counts[b] || 0) - (counts[a] || 0));
     keys.push("other");
-    $("chips").innerHTML = keys.map((k) =>
-      `<button class="chip" type="button" data-k="${k}" aria-pressed="${k === state.niche}">${NICHES[k]}<small>${nf.format(counts[k] || 0)}</small></button>`).join("");
+    const all = Object.values(counts).reduce((a, b) => a + b, 0);
+    // "Усі" is just a chip with an empty key: pressing it clears the niche filter
+    $("chips").innerHTML =
+      `<button class="chip" type="button" data-k="" aria-pressed="${!state.niche}">Усі<small>${nf.format(all)}</small></button>` +
+      keys.map((k) =>
+        `<button class="chip" type="button" data-k="${k}" aria-pressed="${k === state.niche}">${NICHES[k]}<small>${nf.format(counts[k] || 0)}</small></button>`).join("");
   }
 
   function bindChips() {
     $("chips").addEventListener("click", (e) => {
       const b = e.target.closest(".chip"); if (!b) return;
-      state.niche = state.niche === b.dataset.k ? null : b.dataset.k;
-      for (const c of $("chips").children) c.setAttribute("aria-pressed", String(c.dataset.k === state.niche));
+      const k = b.dataset.k || null;
+      state.niche = state.niche === k ? null : k;   // tapping the active niche again also shows all
+      for (const c of $("chips").children) c.setAttribute("aria-pressed", String((c.dataset.k || null) === state.niche));
       applyFilters();
     });
   }
