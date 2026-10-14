@@ -36,6 +36,9 @@ jq --arg today "$TODAY" '
         u:  ((.currentVersionReleaseDate // "")[:10]),
         v:  .version,
         ua: (if .hasUA then 1 else 0 end),
+        # business model: paid upfront wins; otherwise a description hint means "probably freemium"
+        m:  (if (.price // 0) > 0 then "paid" elif .iapHint == true then "freemium" else "free" end),
+        fp: (if (.price // 0) > 0 then .formattedPrice else null end),
         k:  niche,
         g:  .goneSince,
         f:  .firstSeen

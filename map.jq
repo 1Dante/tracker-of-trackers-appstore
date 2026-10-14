@@ -7,6 +7,13 @@ def tracker_re:
 
 def tracker_like: (.trackName // "") | test(tracker_re; "i");
 
+# The API has no "in-app purchases" flag, so we guess from the description.
+# Only the boolean is stored; the description itself is not kept.
+def iap_re:
+  "subscription|subscribe|premium|\\bpro version|\\bpro\\b|unlock|upgrade|free trial|in-app|purchase|підписк|преміум|пробн|розблок";
+
+def iap_hint: (.description // "") | test(iap_re; "i");
+
 # $src: how the app was found ("search" | "artist")
 # $q:   search term that returned it (null for artist lookups)
 def to_app($src; $q):
@@ -25,6 +32,8 @@ def to_app($src; $q):
     minimumOsVersion,
     fileSizeBytes: ((.fileSizeBytes // "0") | tonumber),
     price,
+    formattedPrice,                                              # e.g. "99,00 ₴" or "Free"
+    iapHint: iap_hint,                                           # description mentions subscription / premium / purchases
     releaseNotes,
     icon: .artworkUrl512,
     url: .trackViewUrl,

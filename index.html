@@ -145,6 +145,7 @@
   .meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-top: 4px; font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
   .meta .rate { color: var(--ink); }
   .tag { font-size: 12px; font-weight: 600; padding: 2px 7px; border-radius: 5px; border: 1px solid var(--line); color: var(--ink); }
+  .tag.soft { font-weight: 500; color: var(--muted); }
   .is-gone img { filter: grayscale(1); opacity: .5; }
   .is-gone .name { color: var(--muted); }
   .gone-badge { font: 600 12px var(--text); padding: 3px 8px; border-radius: 5px; border: 1px dashed var(--gone); color: var(--muted); background: transparent; cursor: pointer; min-height: 28px; }
@@ -266,6 +267,15 @@
       </div>
     </fieldset>
     <fieldset>
+      <legend>Модель</legend>
+      <div class="seg">
+        <label><input type="radio" name="model" value="all" checked><span>Будь-яка</span></label>
+        <label><input type="radio" name="model" value="free"><span>Безкоштовні</span></label>
+        <label><input type="radio" name="model" value="freemium"><span>Ймовірно freemium</span></label>
+        <label><input type="radio" name="model" value="paid"><span>Платні</span></label>
+      </div>
+    </fieldset>
+    <fieldset>
       <label class="toggle"><span>Ховати відсутні в App Store</span><input type="checkbox" name="hideGone"></label>
     </fieldset>
     <div class="sheet-actions">
@@ -304,7 +314,7 @@
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
   let DATA, apps = [], view = [], shown = 0;
-  const state = { scope: "ua", niche: null, q: "", sort: "new", year: "all", ratings: "all", hideGone: false };
+  const state = { scope: "ua", niche: null, q: "", sort: "new", year: "all", ratings: "all", model: "all", hideGone: false };
   const scoped = () => state.scope === "ua" ? apps.filter((a) => a.ua) : apps;
   const isReleased = (a) => a.d && a.d <= DATA.updated;   // pre-orders have a future release date
 
@@ -471,11 +481,11 @@
 
   function readForm() {
     const f = new FormData($("filters"));
-    return { year: f.get("year"), ratings: f.get("ratings"), hideGone: f.has("hideGone") };
+    return { year: f.get("year"), ratings: f.get("ratings"), model: f.get("model"), hideGone: f.has("hideGone") };
   }
   function syncForm() {
     const form = $("filters");
-    form.year.value = state.year; form.ratings.value = state.ratings;
+    form.year.value = state.year; form.ratings.value = state.ratings; form.model.value = state.model;
     form.hideGone.checked = state.hideGone;
     form.dispatchEvent(new Event("change"));
   }
@@ -491,6 +501,7 @@
       if (s.ratings === "10" && (a.c < 10 || a.c > 99)) return false;
       if (s.ratings === "100" && a.c < 100) return false;
       if (s.scope === "ua" && !a.ua) return false;
+      if (s.model !== "all" && a.m !== s.model) return false;
       if (s.hideGone && a.g) return false;
       return true;
     });
@@ -507,7 +518,7 @@
   function applyFilters() {
     renderChips();
     view = filter({}).sort(SORTS[state.sort]);
-    const active = (state.year !== "all") + (state.ratings !== "all") + state.hideGone;
+    const active = (state.year !== "all") + (state.ratings !== "all") + (state.model !== "all") + state.hideGone;
     $("fcount").hidden = !active; $("fcount").textContent = active;
     $("count").textContent = `Знайдено ${nf.format(view.length)} ${plural(view.length, "трекер", "трекери", "трекерів")}`;
     $("list").innerHTML = ""; shown = 0;
@@ -527,16 +538,17 @@
     const rate = a.c ? `<span class="rate">★ ${a.r.toLocaleString("uk-UA", { minimumFractionDigits: 1 })}</span><span>${nf.format(a.c)} ${plural(a.c, "оцінка", "оцінки", "оцінок")}</span>` : `<span>Без оцінок</span>`;
     const rel = a.d ? `<span>${relDate.format(toDate(a.d)).replace(" р.", "")}</span>` : "";
     const ua = a.ua ? `<span class="tag" title="Є українська локалізація">UA</span>` : "";
+    const model = a.m === "paid" ? `<span class="tag">${esc(a.fp || "Платний")}</span>`
+      : a.m === "freemium" ? `<span class="tag soft" title="В описі згадуються підписка, преміум або покупки. Apple не віддає цю інформацію напряму, тож це припущення.">Ймовірно freemium</span>`
+      : `<span class="tag soft">Безкоштовно</span>`;
     const gone = a.g ? `<button class="gone-badge" type="button" popovertarget="g${a.id}">Відсутній в App Store</button>
       <div id="g${a.id}" popover>Застосунок не знайдено в українському App Store з ${fullDate.format(toDate(a.g))}. Розробник міг зняти його з продажу або прибрати Україну зі списку країн.</div>` : "";
-    const body = `${icon}<div><div class="name">${esc(a.n)}</div><div class="seller">${esc(a.s)}</div><div class="meta">${rate}${rel}${ua}${gone}</div></div>`;
+    const body = `${icon}<div><div class="name">${esc(a.n)}</div><div class="seller">${esc(a.s)}</div><div class="meta">${rate}${rel}${model}${ua}${gone}</div></div>`;
     return a.g
       ? `<li class="is-gone"><div class="app">${body}</div></li>`
       : `<li><a class="app" href="https://apps.apple.com/ua/app/id${a.id}" target="_blank" rel="noopener">${body}</a></li>`;
   }
 })();
 </script>
-<script data-goatcounter="https://trekery.goatcounter.com/count"
-        async src="//gc.zgo.at/count.js"></script>
 </body>
 </html>
