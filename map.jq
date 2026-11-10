@@ -21,6 +21,7 @@ def to_app($src; $q):
     trackId,
     trackName,
     sellerName,
+    sellerUrl,                                                   # developer website, often missing
     artistId,
     rating: (.averageUserRating // 0),
     ratingCount: (.userRatingCount // 0),

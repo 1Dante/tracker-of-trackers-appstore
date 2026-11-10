@@ -239,6 +239,7 @@
   <footer>
     <p>Дані зібрано через публічний iTunes Search API: 45 пошукових запитів, усі застосунки розробників нових трекерів і щоденна перевірка кожного відомого трекера. Пошук Apple віддає не більше 200 результатів на запит, тож у базі лише ті застосунки, які вдалося знайти.</p>
     <p>Трекер визначається за назвою застосунку, тому трапляються помилки в обидва боки.</p>
+    <p>Застосунки ймовірно російських розробників (за формою компанії продавця та його сайтом) на сайті не показуються.</p>
     <p><a href="https://github.com/1Dante/tracker-of-trackers-appstore">Код і дані на GitHub</a></p>
   </footer>
 </div>
@@ -279,7 +280,7 @@
       <label class="toggle"><span>Ховати відсутні в App Store</span><input type="checkbox" name="hideGone"></label>
     </fieldset>
     <div class="sheet-actions">
-      <button class="btn" type="button" id="reset">Скинути</button>
+      <button class="btn" type="button" id="reset-filters">Скинути</button>
       <button class="btn primary" value="apply" id="apply">Показати</button>
     </div>
   </form>
@@ -473,8 +474,8 @@
     $("open-filters").addEventListener("click", () => { syncForm(); sheet.showModal(); });
     sheet.addEventListener("click", (e) => { if (e.target === sheet) sheet.close(); });   // tap on backdrop
     form.addEventListener("change", () => { $("apply").textContent = `Показати ${nf.format(filter(readForm()).length)}`; });
-    $("reset").addEventListener("click", () => { form.reset(); form.dispatchEvent(new Event("change")); });
-    sheet.addEventListener("close", () => { if (sheet.returnValue === "apply") { Object.assign(state, readForm()); applyFilters(); } });
+    $("reset-filters").addEventListener("click", () => { form.reset(); form.dispatchEvent(new Event("change")); });
+    sheet.addEventListener("close", () => { if (sheet.returnValue === "apply") { Object.assign(state, readForm()); renderLead(); if ($("more").open) renderGrid(); applyFilters(); } });
 
     new IntersectionObserver((es) => { if (es[0].isIntersecting) renderMore(); }, { rootMargin: "600px" }).observe($("sentinel"));
   }

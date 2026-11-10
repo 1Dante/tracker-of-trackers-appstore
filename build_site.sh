@@ -5,8 +5,20 @@
 set -euo pipefail
 
 TODAY="${TODAY:-$(date -u +%F)}"
+[[ -f blocklist.txt ]] || touch blocklist.txt
 
-jq --arg today "$TODAY" '
+jq --arg today "$TODAY" --rawfile block blocklist.txt '
+  # Manual list: one seller name or artistId per line, "#" starts a comment
+  ($block | split("\n") | map(sub("#.*$"; "") | gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))) as $blocked
+
+  # The API has no developer country. Apple writes Russian legal forms in Latin
+  # ("NAME, OOO", "Surname Name Patronymic IP", "NAME, AO"), and some sellers link a .ru site.
+  # OOO is also used in Belarus and Uzbekistan, so this means "probably RU/BY", not a fact.
+  | def ru_like:
+      ((.sellerName // "") | test("(^|[\\s,])(OOO|ООО|PAO|ZAO|OAO|AO)([\\s,.]|$)|\\sIP$"))
+      or ((.sellerUrl // "") | test("\\.(ru|su|xn--p1ai)(/|:|$)"; "i"))
+      or ((.sellerName // "") as $s | $blocked | index($s) != null)
+      or ((.artistId // 0 | tostring) as $a | $blocked | index($a) != null);
   # Niche by app name; first match wins, order matters
   def niche:
     (.trackName // "" | ascii_downcase) as $n
@@ -24,6 +36,7 @@ jq --arg today "$TODAY" '
 
   [ .[]
     | select(.genre != "Games")                       # "Water Sort" etc. are not trackers
+    | select(ru_like | not)                           # probably Russian developers are not shown at all
     | {
         id: .trackId,
         n:  .trackName,
